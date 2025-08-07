@@ -1,0 +1,110 @@
+# Load required libraries
+library(quantmod)   # For financial data
+library(moments)    # For skewness/kurtosis
+
+# ----------------------------------------
+# 1. Fetch Historical Data (ETH and BTC)
+# ----------------------------------------
+
+# Define assets and time periods
+assets <- c("ETH-USD", "BTC-USD")
+
+# Time Periods
+start_2022 <- as.Date("2022-01-01")
+end_2022   <- as.Date("2022-06-30")
+
+start_2025 <- as.Date("2025-05-07")
+end_2025   <- as.Date("2025-08-06")
+
+# Get data from Yahoo Finance
+getSymbols(assets, src = "yahoo", from = start_2022, to = end_2025)
+
+# Extract adjusted closing prices
+eth_prices <- Cl(`ETH-USD`)
+btc_prices <- Cl(`BTC-USD`)
+
+# ----------------------------------------
+# 2. Subset Data by Periods
+# ----------------------------------------
+
+# Subset prices
+eth_2022 <- eth_prices[paste0(start_2022, "/", end_2022)]
+btc_2022 <- btc_prices[paste0(start_2022, "/", end_2022)]
+
+eth_2025 <- eth_prices[paste0(start_2025, "/", end_2025)]
+btc_2025 <- btc_prices[paste0(start_2025, "/", end_2025)]
+
+# ----------------------------------------
+# 3. Calculate Daily Log Returns
+# ----------------------------------------
+
+eth_ret_2022 <- na.omit(diff(log(eth_2022)))
+btc_ret_2022 <- na.omit(diff(log(btc_2022)))
+
+eth_ret_2025 <- na.omit(diff(log(eth_2025)))
+btc_ret_2025 <- na.omit(diff(log(btc_2025)))
+
+# ----------------------------------------
+# 4. Compute Tail Risk Metrics
+# ----------------------------------------
+
+# 1% and 99% quantiles (VaR and upside potential)
+tail_stats <- function(returns) {
+  list(
+    VaR_1pct = quantile(returns, 0.01),
+    VaR_99pct = quantile(returns, 0.99),
+    Skewness = skewness(returns),
+    Kurtosis = kurtosis(returns)
+  )
+}
+
+eth_stats_2022 <- tail_stats(eth_ret_2022)
+btc_stats_2022 <- tail_stats(btc_ret_2022)
+
+eth_stats_2025 <- tail_stats(eth_ret_2025)
+btc_stats_2025 <- tail_stats(btc_ret_2025)
+
+# ----------------------------------------
+# 5. Print Comparison Table
+# ----------------------------------------
+
+cat("\nTail Risk Comparison: ETH vs BTC\n")
+cat("================================\n")
+cat("          |   ETH 2022 |   BTC 2022 |   ETH 2025 |   BTC 2025\n")
+cat("------------------------------------------------------------\n")
+cat("1% VaR    |", round(eth_stats_2022$VaR_1pct,5), "|",
+                   round(btc_stats_2022$VaR_1pct,5), "|",
+                   round(eth_stats_2025$VaR_1pct,5), "|",
+                   round(btc_stats_2025$VaR_1pct,5), "\n")
+cat("99% Gain  |", round(eth_stats_2022$VaR_99pct,5), "|",
+                   round(btc_stats_2022$VaR_99pct,5), "|",
+                   round(eth_stats_2025$VaR_99pct,5), "|",
+                   round(btc_stats_2025$VaR_99pct,5), "\n")
+cat("Skewness |", round(eth_stats_2022$Skewness,2), "|",
+                   round(btc_stats_2022$Skewness,2), "|",
+                   round(eth_stats_2025$Skewness,2), "|",
+                   round(btc_stats_2025$Skewness,2), "\n")
+cat("Kurtosis |", round(eth_stats_2022$Kurtosis,2), "|",
+                   round(btc_stats_2022$Kurtosis,2), "|",
+                   round(eth_stats_2025$Kurtosis,2), "|",
+                   round(btc_stats_2025$Kurtosis,2), "\n")
+
+# ----------------------------------------
+# 6. Plot CDFs to Visualize Tail Differences
+# ----------------------------------------
+
+# CDF for ETH comparison
+plot(ecdf(eth_ret_2022), col = "blue", lwd = 2,
+     main = "ETH Empirical CDF: 2022 vs 2025",
+     xlab = "Daily Log Return", ylab = "Cumulative Probability")
+lines(ecdf(eth_ret_2025), col = "green", lwd = 2)
+legend("bottomright", legend = c("ETH 2022", "ETH 2025"),
+       col = c("blue", "green"), lwd = 2)
+
+# CDF for BTC comparison
+plot(ecdf(btc_ret_2022), col = "red", lwd = 2,
+     main = "BTC Empirical CDF: 2022 vs 2025",
+     xlab = "Daily Log Return", ylab = "Cumulative Probability")
+lines(ecdf(btc_ret_2025), col = "orange", lwd = 2)
+legend("bottomright", legend = c("BTC 2022", "BTC 2025"),
+       col = c("red", "orange"), lwd = 2)
